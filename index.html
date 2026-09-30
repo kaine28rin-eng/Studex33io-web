@@ -201,7 +201,7 @@ async function loadModules() {
     try {
         let modules;
         if (isGitHubPages()) {
-            const resp = await fetch('/api/materials.json');
+            const resp = await fetch('api/materials.json');
             const data = await resp.json();
             modules = data.modules || [];
         } else {
@@ -237,7 +237,7 @@ async function showModule(moduleName) {
     try {
         let materials, moduleInfo;
         if (isGitHubPages()) {
-            const resp = await fetch('/api/materials.json');
+            const resp = await fetch('api/materials.json');
             const data = await resp.json();
             materials = (data.materials || []).filter(m => m.module === moduleName);
             const mod = (data.modules || []).find(m => m.name === moduleName);
@@ -296,7 +296,7 @@ async function searchMaterials() {
         let results;
         if (isGitHubPages()) {
             // Client-side search on materials.json
-            const resp = await fetch('/api/materials.json');
+            const resp = await fetch('api/materials.json');
             const data = await resp.json();
             const q = query.toLowerCase();
             results = (data.materials || []).filter(m =>
