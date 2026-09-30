@@ -20,7 +20,7 @@ import sqlite3
 # Ensure project root is in path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config import DB_PATH, MODULES
+from config import DB_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,9 @@ app = Flask(__name__,
             static_folder='static',
             static_url_path='/static',
             template_folder='templates')
+
+# Path for the synced JSON (used on GitHub Pages)
+JSON_PATH = os.path.join(os.path.dirname(__file__), 'static', 'api', 'materials.json')
 
 
 def _get_db():
@@ -42,6 +45,39 @@ def _get_db():
 @app.route('/')
 def index():
     return send_from_directory(app.static_folder, 'index.html')
+
+
+@app.route('/api/materials.json')
+def api_materials_json():
+    """Serve the synced JSON file (for GitHub Pages compatibility).
+    If not found, fetch from DB directly."""
+    if os.path.exists(JSON_PATH):
+        return send_file(JSON_PATH, mimetype='application/json')
+
+    conn = _get_db()
+    try:
+        cursor = conn.execute("""
+            SELECT mo.name as module_name, m.id, m.title, m.file_path,
+                   m.file_size, m.mime_type, m.content_text, m.uploaded_at
+            FROM materials m
+            JOIN modules mo ON m.module_id = mo.id
+            ORDER BY m.uploaded_at DESC
+        """)
+        materials = []
+        for row in cursor.fetchall():
+            materials.append({
+                "module": row["module_name"],
+                "id": row["id"],
+                "title": row["title"],
+                "file_path": row["file_path"],
+                "file_size": row["file_size"],
+                "mime_type": row["mime_type"],
+                "content_text": row["content_text"],
+                "uploaded_at": row["uploaded_at"],
+            })
+        return jsonify({"modules": [], "materials": materials, "last_updated": None})
+    finally:
+        conn.close()
 
 
 @app.route('/api/modules')

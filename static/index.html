@@ -50,22 +50,17 @@
             border-radius: 12px;
             padding: 20px;
             border: 1px solid #334155;
-            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            transition: all 0.2s;
         }
         .module-card:hover {
+            border-color: #38bdf8;
             transform: translateY(-2px);
-            box-shadow: 0 4px 20px rgba(56, 189, 248, 0.15);
         }
         .module-card h3 {
             color: #38bdf8;
             font-size: 16px;
-            margin-bottom: 6px;
-        }
-        .module-card .desc {
-            color: #94a3b8;
-            font-size: 13px;
-            margin-bottom: 8px;
-            line-height: 1.4;
+            margin-bottom: 4px;
         }
         .module-card .count {
             color: #64748b;
@@ -98,55 +93,84 @@
             font-size: 14px;
             margin-bottom: 2px;
         }
-        .material-item .info .meta {
-            color: #64748b;
+        .material-item .info p {
+            color: #94a3b8;
             font-size: 12px;
         }
-        .material-item .download-link {
-            color: #38bdf8;
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 500;
-            padding: 6px 12px;
-            border: 1px solid #38bdf8;
+        .material-item .download-btn {
+            background: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 6px 14px;
             border-radius: 6px;
-            transition: background 0.2s;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
         }
-        .material-item .download-link:hover {
-            background: rgba(56, 189, 248, 0.1);
+        .material-item .download-btn:hover {
+            background: #0284c7;
         }
-        .error-msg {
-            text-align: center;
-            color: #ef4444;
+        .no-materials {
+            color: #64748b;
+            font-size: 13px;
+            padding: 10px 0;
+        }
+        .search-results {
+            background: #1e293b;
+            border-radius: 12px;
             padding: 20px;
+            border: 1px solid #334155;
+            margin-bottom: 24px;
+        }
+        .search-results h2 {
+            color: #38bdf8;
+            font-size: 18px;
+            margin-bottom: 12px;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #334155;
+        }
+        .result-item:last-child { border-bottom: none; }
+        .result-item .info span {
+            color: #64748b;
+            font-size: 12px;
         }
         .loading {
             text-align: center;
             color: #64748b;
             padding: 20px;
         }
-        .search-results .result-item {
-            padding: 10px 0;
-            border-bottom: 1px solid #334155;
+        .back-btn {
+            background: #334155;
+            color: #94a3b8;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-bottom: 16px;
         }
-        .search-results .result-item:last-child { border-bottom: none; }
-        .search-results .module-tag {
-            display: inline-block;
-            background: #0ea5e9;
-            color: white;
-            font-size: 11px;
-            padding: 2px 8px;
-            border-radius: 4px;
-            margin-left: 8px;
+        .footer {
+            text-align: center;
+            color: #475569;
+            font-size: 12px;
+            margin-top: 32px;
+            padding-top: 16px;
+            border-top: 1px solid #334155;
         }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>🎓 STUDYX — Academic Materials</h1>
-    <p class="subtitle">FLSH Mohammedia — Semester 5 • Group 2</p>
+    <h1>🎓 STUDYX</h1>
+    <p class="subtitle">Academic Materials Portal — FLSH Mohammedia S5-G2</p>
 
-    <input type="text" class="search-box" id="searchBox" placeholder="🔍 Search materials across all modules..." autocomplete="off">
+    <input type="text" id="searchBox" class="search-box" placeholder="🔍 Search materials across all modules...">
 
     <div id="modulesGrid" class="modules-grid">
         <div class="loading">Loading modules...</div>
@@ -157,126 +181,176 @@
         <div id="resultsContent"></div>
     </div>
 
-    <div id="materialsView"></div>
+    <div id="materialsView" style="display:none;"></div>
+
+    <div class="footer">
+        <p>STUDYX Bot • GitHub: kaine28rin-eng/Studex33io-web</p>
+    </div>
 </div>
 
 <script>
 const API_BASE = '/api';
 
-async function fetchAPI(endpoint) {
-    const resp = await fetch(API_BASE + endpoint);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return resp.json();
+// Detect if running on GitHub Pages (static) vs local Flask
+function isGitHubPages() {
+    return window.location.hostname.includes('github.io');
 }
 
 async function loadModules() {
     const grid = document.getElementById('modulesGrid');
     try {
-        const data = await fetchAPI('/modules');
-        if (data.modules.length === 0) {
+        let modules;
+        if (isGitHubPages()) {
+            const resp = await fetch('/api/materials.json');
+            const data = await resp.json();
+            modules = data.modules || [];
+        } else {
+            const resp = await fetch(`${API_BASE}/modules`);
+            const data = await resp.json();
+            modules = data.modules || [];
+        }
+
+        if (modules.length === 0) {
             grid.innerHTML = '<div class="loading">No modules found.</div>';
             return;
         }
-        grid.innerHTML = data.modules.map(m => `
-            <div class="module-card" onclick="loadMaterials('${encodeURIComponent(m.name)}', this)">
+
+        grid.innerHTML = modules.map(m => `
+            <div class="module-card" onclick="showModule('${m.name}')">
                 <h3>${m.name}</h3>
-                <div class="desc">${m.description || 'No description available.'}</div>
-                <div class="count">${m.material_count} material(s)</div>
+                <div class="count">${m.material_count || 0} material(s) • ${m.description || ''}</div>
             </div>
         `).join('');
-    } catch (err) {
-        grid.innerHTML = `<div class="error-msg">Error loading modules: ${err.message}</div>`;
+    } catch (e) {
+        grid.innerHTML = '<div class="loading">Error loading modules.</div>';
+        console.error(e);
     }
 }
 
-async function loadMaterials(moduleName, clickedCard) {
-    // Highlight active card
-    document.querySelectorAll('.module-card').forEach(c => c.classList.remove('active'));
-    if (clickedCard) clickedCard.classList.add('active');
-
+async function showModule(moduleName) {
+    document.getElementById('modulesGrid').style.display = 'none';
+    document.getElementById('searchResults').style.display = 'none';
     const view = document.getElementById('materialsView');
     view.innerHTML = '<div class="loading">Loading materials...</div>';
-    document.getElementById('searchResults').style.display = 'none';
+    view.style.display = 'block';
 
     try {
-        const data = await fetchAPI(`/materials/${encodeURIComponent(moduleName)}`);
-        if (data.materials.length === 0) {
-            view.innerHTML = `
-                <div class="materials-section">
-                    <h2>${moduleName}</h2>
-                    <div class="loading">No materials uploaded yet.</div>
-                </div>
-            `;
-            return;
+        let materials, moduleInfo;
+        if (isGitHubPages()) {
+            const resp = await fetch('/api/materials.json');
+            const data = await resp.json();
+            materials = (data.materials || []).filter(m => m.module === moduleName);
+            const mod = (data.modules || []).find(m => m.name === moduleName);
+            moduleInfo = mod || { name: moduleName, description: '', material_count: materials.length };
+        } else {
+            const resp = await fetch(`${API_BASE}/materials/${encodeURIComponent(moduleName)}`);
+            const data = await resp.json();
+            materials = data.materials || [];
+            moduleInfo = { name: moduleName, description: '', material_count: materials.length };
         }
-
-        const fileIcons = {
-            'application/pdf': '📄',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '📝',
-            'text/plain': '📝',
-            'text/markdown': '📝',
-            'image/jpeg': '🖼️',
-            'image/png': '🖼️',
-            'image/webp': '🖼️',
-        };
 
         view.innerHTML = `
             <div class="materials-section">
-                <h2>${moduleName}</h2>
-                ${data.materials.map(m => `
-                    <div class="material-item">
-                        <div class="info">
-                            <h4>${fileIcons[m.mime_type] || '📎'} ${m.title}</h4>
-                            <div class="meta">
-                                ${m.file_size ? (m.file_size / 1024).toFixed(1) + ' KB' : 'Unknown size'}
-                                • ${new Date(m.uploaded_at).toLocaleDateString()}
+                <button class="back-btn" onclick="backToModules()">← Back to Modules</button>
+                <h2>${moduleInfo.name}</h2>
+                <p style="color:#94a3b8;font-size:13px;margin-bottom:12px;">${moduleInfo.description || ''}</p>
+                <p style="color:#64748b;font-size:12px;margin-bottom:12px;">${materials.length} material(s)</p>
+                ${materials.length === 0
+                    ? '<div class="no-materials">No materials uploaded yet. Check back later!</div>'
+                    : materials.map(m => `
+                        <div class="material-item">
+                            <div class="info">
+                                <h4>${m.title}</h4>
+                                <p>${formatFileSize(m.file_size)} • ${m.mime_type || 'file'}</p>
+                                ${m.uploaded_at ? `<p style="font-size:11px;color:#475569;">${m.uploaded_at}</p>` : ''}
                             </div>
+                            <a href="${m.download_url || '#'}" class="download-btn">Download</a>
                         </div>
-                        <a href="${m.download_url}" class="download-link" download>⬇️ Download</a>
-                    </div>
-                `).join('')}
+                    `).join('')
+                }
             </div>
         `;
-    } catch (err) {
-        view.innerHTML = `<div class="error-msg">Error loading materials: ${err.message}</div>`;
+    } catch (e) {
+        view.innerHTML = '<div class="loading">Error loading materials.</div>';
+        console.error(e);
     }
 }
 
-// Live search
-let searchTimeout;
-document.getElementById('searchBox').addEventListener('input', async (e) => {
-    const q = e.target.value.trim();
-    if (!q) {
+function backToModules() {
+    document.getElementById('modulesGrid').style.display = 'grid';
+    document.getElementById('searchResults').style.display = 'none';
+    document.getElementById('materialsView').style.display = 'none';
+}
+
+async function searchMaterials() {
+    const query = document.getElementById('searchBox').value.trim();
+    if (!query) {
         document.getElementById('searchResults').style.display = 'none';
-        document.getElementById('modulesGrid').style.display = 'grid';
         return;
     }
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(async () => {
-        try {
-            const data = await fetchAPI(`/search?q=${encodeURIComponent(q)}`);
-            const resultsDiv = document.getElementById('searchResults');
-            const contentDiv = document.getElementById('resultsContent');
-            document.getElementById('modulesGrid').style.display = 'none';
-            resultsDiv.style.display = 'block';
-            if (data.results.length === 0) {
-                contentDiv.innerHTML = '<div class="loading">No results found.</div>';
-            } else {
-                contentDiv.innerHTML = data.results.map(r => `
-                    <div class="result-item">
-                        <strong>${r.title}</strong>
-                        <span class="module-tag">${r.module}</span>
-                        <br><small style="color:#64748b">${r.mime_type}</small>
-                    </div>
-                `).join('');
-            }
-        } catch (err) {
-            document.getElementById('resultsContent').innerHTML =
-                `<div class="error-msg">Search error: ${err.message}</div>`;
+
+    const view = document.getElementById('materialsView');
+    view.style.display = 'none';
+
+    try {
+        let results;
+        if (isGitHubPages()) {
+            // Client-side search on materials.json
+            const resp = await fetch('/api/materials.json');
+            const data = await resp.json();
+            const q = query.toLowerCase();
+            results = (data.materials || []).filter(m =>
+                (m.title && m.title.toLowerCase().includes(q)) ||
+                (m.module && m.module.toLowerCase().includes(q)) ||
+                (m.content_text && m.content_text.toLowerCase().includes(q))
+            );
+        } else {
+            const resp = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+            const data = await resp.json();
+            results = data.results || [];
         }
-    }, 400);
+
+        const resultsDiv = document.getElementById('resultsContent');
+        const resultsSection = document.getElementById('searchResults');
+
+        if (results.length === 0) {
+            resultsDiv.innerHTML = '<div class="no-materials">No results found.</div>';
+        } else {
+            resultsDiv.innerHTML = results.map(m => `
+                <div class="result-item">
+                    <div class="info">
+                        <h4 style="color:#e2e8f0;font-size:14px;margin-bottom:2px;">${m.title}</h4>
+                        <span style="color:#64748b;font-size:12px;">${m.module} • ${formatFileSize(m.file_size)}</span>
+                    </div>
+                    ${m.download_url ? `<a href="${m.download_url}" class="download-btn">Download</a>` : ''}
+                </div>
+            `).join('');
+        }
+        resultsSection.style.display = 'block';
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '—';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+document.getElementById('searchBox').addEventListener('input', function() {
+    if (this.value.length > 2) {
+        searchMaterials();
+    } else if (this.value.length === 0) {
+        document.getElementById('searchResults').style.display = 'none';
+        document.getElementById('materialsView').style.display = 'none';
+        document.getElementById('modulesGrid').style.display = 'grid';
+    }
 });
 
+// Auto-load modules on page load
 loadModules();
 </script>
 </body>
