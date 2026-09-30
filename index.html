@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STUDYX — Academic Materials</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            color: #38bdf8;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #94a3b8;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        .search-box {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            background: #1e293b;
+            color: #e2e8f0;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: #38bdf8;
+        }
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .module-card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #334155;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .module-card:hover {
+            border-color: #38bdf8;
+            transform: translateY(-2px);
+        }
+        .module-card h3 {
+            color: #38bdf8;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        .module-card .count {
+            color: #64748b;
+            font-size: 13px;
+        }
+        .materials-section {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #334155;
+            margin-bottom: 24px;
+        }
+        .materials-section h2 {
+            color: #38bdf8;
+            font-size: 18px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #334155;
+        }
+        .material-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #334155;
+        }
+        .material-item:last-child { border-bottom: none; }
+        .material-item .info h4 {
+            color: #e2e8f0;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+        .material-item .info p {
+            color: #94a3b8;
+            font-size: 12px;
+        }
+        .material-item .download-btn {
+            background: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .material-item .download-btn:hover {
+            background: #0284c7;
+        }
+        .no-materials {
+            color: #64748b;
+            font-size: 13px;
+            padding: 10px 0;
+        }
+        .search-results {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #334155;
+            margin-bottom: 24px;
+        }
+        .search-results h2 {
+            color: #38bdf8;
+            font-size: 18px;
+            margin-bottom: 12px;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #334155;
+        }
+        .result-item:last-child { border-bottom: none; }
+        .result-item .info span {
+            color: #64748b;
+            font-size: 12px;
+        }
+        .loading {
+            text-align: center;
+            color: #64748b;
+            padding: 20px;
+        }
+        .back-btn {
+            background: #334155;
+            color: #94a3b8;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-bottom: 16px;
+        }
+        .footer {
+            text-align: center;
+            color: #475569;
+            font-size: 12px;
+            margin-top: 32px;
+            padding-top: 16px;
+            border-top: 1px solid #334155;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🎓 STUDYX</h1>
+    <p class="subtitle">Academic Materials Portal — FLSH Mohammedia S5-G2</p>
+
+    <input type="text" id="searchBox" class="search-box" placeholder="🔍 Search materials across all modules...">
+
+    <div id="modulesGrid" class="modules-grid">
+        <div class="loading">Loading modules...</div>
+    </div>
+
+    <div id="searchResults" style="display:none;" class="search-results">
+        <h2>Search Results</h2>
+        <div id="resultsContent"></div>
+    </div>
+
+    <div id="materialsView" style="display:none;"></div>
+
+    <div class="footer">
+        <p>STUDYX Bot • GitHub: kaine28rin-eng/Studex33io-web</p>
+    </div>
+</div>
+
+<script>
+const API_BASE = '/api';
+
+// Detect if running on GitHub Pages (static) vs local Flask
+function isGitHubPages() {
+    return window.location.hostname.includes('github.io');
+}
+
+async function loadModules() {
+    const grid = document.getElementById('modulesGrid');
+    try {
+        let modules;
+        if (isGitHubPages()) {
+            const resp = await fetch('/api/materials.json');
+            const data = await resp.json();
+            modules = data.modules || [];
+        } else {
+            const resp = await fetch(`${API_BASE}/modules`);
+            const data = await resp.json();
+            modules = data.modules || [];
+        }
+
+        if (modules.length === 0) {
+            grid.innerHTML = '<div class="loading">No modules found.</div>';
+            return;
+        }
+
+        grid.innerHTML = modules.map(m => `
+            <div class="module-card" onclick="showModule('${m.name}')">
+                <h3>${m.name}</h3>
+                <div class="count">${m.material_count || 0} material(s) • ${m.description || ''}</div>
+            </div>
+        `).join('');
+    } catch (e) {
+        grid.innerHTML = '<div class="loading">Error loading modules.</div>';
+        console.error(e);
+    }
+}
+
+async function showModule(moduleName) {
+    document.getElementById('modulesGrid').style.display = 'none';
+    document.getElementById('searchResults').style.display = 'none';
+    const view = document.getElementById('materialsView');
+    view.innerHTML = '<div class="loading">Loading materials...</div>';
+    view.style.display = 'block';
+
+    try {
+        let materials, moduleInfo;
+        if (isGitHubPages()) {
+            const resp = await fetch('/api/materials.json');
+            const data = await resp.json();
+            materials = (data.materials || []).filter(m => m.module === moduleName);
+            const mod = (data.modules || []).find(m => m.name === moduleName);
+            moduleInfo = mod || { name: moduleName, description: '', material_count: materials.length };
+        } else {
+            const resp = await fetch(`${API_BASE}/materials/${encodeURIComponent(moduleName)}`);
+            const data = await resp.json();
+            materials = data.materials || [];
+            moduleInfo = { name: moduleName, description: '', material_count: materials.length };
+        }
+
+        view.innerHTML = `
+            <div class="materials-section">
+                <button class="back-btn" onclick="backToModules()">← Back to Modules</button>
+                <h2>${moduleInfo.name}</h2>
+                <p style="color:#94a3b8;font-size:13px;margin-bottom:12px;">${moduleInfo.description || ''}</p>
+                <p style="color:#64748b;font-size:12px;margin-bottom:12px;">${materials.length} material(s)</p>
+                ${materials.length === 0
+                    ? '<div class="no-materials">No materials uploaded yet. Check back later!</div>'
+                    : materials.map(m => `
+                        <div class="material-item">
+                            <div class="info">
+                                <h4>${m.title}</h4>
+                                <p>${formatFileSize(m.file_size)} • ${m.mime_type || 'file'}</p>
+                                ${m.uploaded_at ? `<p style="font-size:11px;color:#475569;">${m.uploaded_at}</p>` : ''}
+                            </div>
+                            <a href="${m.download_url || '#'}" class="download-btn">Download</a>
+                        </div>
+                    `).join('')
+                }
+            </div>
+        `;
+    } catch (e) {
+        view.innerHTML = '<div class="loading">Error loading materials.</div>';
+        console.error(e);
+    }
+}
+
+function backToModules() {
+    document.getElementById('modulesGrid').style.display = 'grid';
+    document.getElementById('searchResults').style.display = 'none';
+    document.getElementById('materialsView').style.display = 'none';
+}
+
+async function searchMaterials() {
+    const query = document.getElementById('searchBox').value.trim();
+    if (!query) {
+        document.getElementById('searchResults').style.display = 'none';
+        return;
+    }
+
+    const view = document.getElementById('materialsView');
+    view.style.display = 'none';
+
+    try {
+        let results;
+        if (isGitHubPages()) {
+            // Client-side search on materials.json
+            const resp = await fetch('/api/materials.json');
+            const data = await resp.json();
+            const q = query.toLowerCase();
+            results = (data.materials || []).filter(m =>
+                (m.title && m.title.toLowerCase().includes(q)) ||
+                (m.module && m.module.toLowerCase().includes(q)) ||
+                (m.content_text && m.content_text.toLowerCase().includes(q))
+            );
+        } else {
+            const resp = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+            const data = await resp.json();
+            results = data.results || [];
+        }
+
+        const resultsDiv = document.getElementById('resultsContent');
+        const resultsSection = document.getElementById('searchResults');
+
+        if (results.length === 0) {
+            resultsDiv.innerHTML = '<div class="no-materials">No results found.</div>';
+        } else {
+            resultsDiv.innerHTML = results.map(m => `
+                <div class="result-item">
+                    <div class="info">
+                        <h4 style="color:#e2e8f0;font-size:14px;margin-bottom:2px;">${m.title}</h4>
+                        <span style="color:#64748b;font-size:12px;">${m.module} • ${formatFileSize(m.file_size)}</span>
+                    </div>
+                    ${m.download_url ? `<a href="${m.download_url}" class="download-btn">Download</a>` : ''}
+                </div>
+            `).join('');
+        }
+        resultsSection.style.display = 'block';
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '—';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+document.getElementById('searchBox').addEventListener('input', function() {
+    if (this.value.length > 2) {
+        searchMaterials();
+    } else if (this.value.length === 0) {
+        document.getElementById('searchResults').style.display = 'none';
+        document.getElementById('materialsView').style.display = 'none';
+        document.getElementById('modulesGrid').style.display = 'grid';
+    }
+});
+
+// Auto-load modules on page load
+loadModules();
+</script>
+</body>
+</html>
