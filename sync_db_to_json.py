@@ -11,6 +11,7 @@ import os
 import sys
 import json
 import asyncio
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -71,7 +72,7 @@ async def sync():
         materials_data["last_updated"] = datetime.utcnow().isoformat()
 
     # Write JSON file
-    output_path = os.path.join(os.path.dirname(__file__), 'static', 'api', 'materials.json')
+    output_path = os.path.join(os.path.dirname(__file__), 'api', 'materials.json')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'w') as f:
         json.dump(materials_data, f, indent=2, default=str)
