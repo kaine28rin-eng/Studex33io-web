@@ -4,33 +4,43 @@
       "id": 1,
       "name": "19th Century Literature",
       "description": "19th Century Russian & British Literature",
+      "classroom_code": null,
+      "classroom_url": null,
       "material_count": 0
     },
     {
       "id": 9,
       "name": "Advanced Research Techniques",
       "description": "Advanced research methodologies",
+      "classroom_code": "pzsjcbpu",
+      "classroom_url": "https://classroom.google.com/c/pzsjcbpu",
       "material_count": 0
     },
     {
       "id": 2,
       "name": "Applied Linguistics",
       "description": "Applied Linguistics and terminology",
+      "classroom_code": null,
+      "classroom_url": null,
       "material_count": 0
     },
     {
       "id": 3,
       "name": "Cultural Studies",
       "description": "Cultural theory, film, media studies",
+      "classroom_code": "f4sls4cj",
+      "classroom_url": "https://classroom.google.com/c/f4sls4cj",
       "material_count": 0
     },
     {
       "id": 75,
       "name": "General Linguistics",
       "description": "Foundational linguistics concepts and general linguistics",
+      "classroom_code": null,
+      "classroom_url": null,
       "material_count": 0
     }
   ],
-  "last_updated": "2026-10-01T00:48:38.876032",
+  "last_updated": "2026-10-01T12:23:31.760371",
   "materials": []
 }

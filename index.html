@@ -426,6 +426,71 @@
       letter-spacing: 0.3px;
     }
 
+    /* ===== Google Classroom Glass Badge ===== */
+    .classroom-badge-wrapper {
+      margin-top: 10px;
+    }
+
+    .classroom-glass-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(6, 182, 212, 0.08);
+      border: 1.5px solid rgba(6, 182, 212, 0.3);
+      border-radius: 12px;
+      padding: 8px 14px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: all 180ms var(--ease-spring);
+    }
+
+    .classroom-glass-badge:hover {
+      border-color: var(--color-accent-cyan);
+      background: rgba(6, 182, 212, 0.15);
+      box-shadow: 0 0 20px var(--color-primary-glow);
+    }
+
+    .classroom-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .classroom-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--color-primary);
+      letter-spacing: 1px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 6px;
+      padding: 4px 10px;
+    }
+
+    .classroom-copy-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      color: var(--color-text-dim);
+      cursor: pointer;
+      transition: all 150ms ease;
+      opacity: 0.6;
+    }
+
+    .classroom-copy-btn:hover {
+      opacity: 1;
+      color: var(--color-primary);
+      border-color: var(--color-primary);
+      background: rgba(6, 182, 212, 0.1);
+    }
+
     /* ===== Materials View ===== */
     .materials-view {
       display: none;
@@ -876,6 +941,17 @@
               <span class="dot"></span>
               <span id="moduleDesc"></span>
             </div>
+            <!-- Google Classroom code badge -->
+            <div class="classroom-badge-wrapper" id="classroomBadgeWrapper" style="display:none; margin-top: 12px;">
+              <div class="classroom-glass-badge">
+                <i data-lucide="graduation-cap" class="w-4 h-4"></i>
+                <span class="classroom-label">Google Classroom</span>
+                <code class="classroom-code" id="classroomCode">----</code>
+                <button class="classroom-copy-btn" id="classroomCopyBtn" title="Copy code">
+                  <i data-lucide="copy" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
           </div>
           <div class="materials-list" id="materialsList">
             <div class="material-item" style="opacity:0.5">
@@ -906,6 +982,42 @@
           document.getElementById('materialCount').textContent =
             `${materials.length} material${materials.length !== 1 ? 's' : ''}`;
           document.getElementById('moduleDesc').textContent = moduleInfo.description || '';
+
+          // Inject Google Classroom code badge
+          const badgeWrapper = document.getElementById('classroomBadgeWrapper');
+          const codeEl = document.getElementById('classroomCode');
+          const copyBtn = document.getElementById('classroomCopyBtn');
+          if (badgeWrapper && codeEl && copyBtn) {
+            if (moduleInfo.classroom_code) {
+              codeEl.textContent = moduleInfo.classroom_code;
+              badgeWrapper.style.display = 'block';
+            } else {
+              badgeWrapper.style.display = 'none';
+            }
+            // Copy to clipboard on click
+            copyBtn.onclick = async function(e) {
+              e.preventDefault();
+              const code = codeEl.textContent.trim();
+              if (!code || code === '----') return;
+              try {
+                await navigator.clipboard.writeText(code);
+                const origHTML = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i>';
+                lucide.createIcons();
+                setTimeout(() => {
+                  copyBtn.innerHTML = origHTML;
+                  lucide.createIcons();
+                }, 1200);
+              } catch (err) {
+                copyBtn.innerHTML = '<i data-lucide="alert-circle" class="w-4 h-4"></i>';
+                lucide.createIcons();
+                setTimeout(() => {
+                  copyBtn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i>';
+                  lucide.createIcons();
+                }, 1200);
+              }
+            };
+          }
 
           if (materials.length === 0) {
             document.getElementById('materialsList').innerHTML = `

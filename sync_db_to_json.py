@@ -28,7 +28,7 @@ async def sync():
 
         # Get all modules with material counts
         cursor = await db.execute("""
-            SELECT mo.id, mo.name, mo.description,
+            SELECT mo.id, mo.name, mo.description, mo.classroom_code, mo.classroom_url,
                    COUNT(m.id) as material_count
             FROM modules mo
             LEFT JOIN materials m ON m.module_id = mo.id
@@ -42,6 +42,8 @@ async def sync():
                 "id": row["id"],
                 "name": row["name"],
                 "description": row["description"] or "",
+                "classroom_code": row["classroom_code"],
+                "classroom_url": row["classroom_url"],
                 "material_count": row["material_count"] or 0,
             })
 
