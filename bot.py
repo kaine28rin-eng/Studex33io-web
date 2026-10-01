@@ -18,7 +18,7 @@ from aiogram.types import (
     CallbackQuery,
     WebAppInfo,
     InputMediaPhoto,
-    InputFile,
+    FSInputFile,
 )
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
@@ -426,6 +426,8 @@ async def classroom_codes_callback(callback: CallbackQuery):
 async def timetable_callback(callback: CallbackQuery):
     """Handle the 'Timetable' inline button callback.
     Shows the timetable image with a Back button.
+    Uses delete + answer_photo because Telegram cannot edit a pure text message
+    into a media message.
     """
     timetable_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "timetable_s5gr02.jpg")
 
@@ -434,31 +436,21 @@ async def timetable_callback(callback: CallbackQuery):
     ])
 
     try:
-        input_file = InputFile(timetable_path)
-        await callback.message.edit_media(
-            media=InputMediaPhoto(media=input_file),
+        photo = FSInputFile(timetable_path)
+        await callback.message.delete()
+        await callback.message.answer_photo(
+            photo=photo,
             caption="📅 <b>S5 GR02 Weekly Timetable</b>\n\n📍 FLSH Mohammedia",
             reply_markup=keyboard,
             parse_mode="HTML",
         )
     except Exception as e:
-        logger.warning("Timetable image edit failed: %s", e)
-        # Fallback: send the image as a new photo
-        try:
-            with open(timetable_path, "rb") as photo:
-                await callback.message.reply_photo(
-                    photo=photo,
-                    caption="📅 <b>S5 GR02 Weekly Timetable</b>\n\n📍 FLSH Mohammedia",
-                    reply_markup=keyboard,
-                    parse_mode="HTML",
-                )
-        except Exception as e2:
-            logger.error("Timetable image send also failed: %s", e2)
-            await callback.message.edit_text(
-                "📅 <b>S5 GR02 Weekly Timetable</b>\n\n(Image failed to load)",
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
+        logger.error("Timetable send failed: %s", e, exc_info=True)
+        await callback.message.answer(
+            "📅 <b>S5 GR02 Weekly Timetable</b>\n\n(Image failed to load)\n\nError: {}".format(e),
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
     await callback.answer()
 
 
