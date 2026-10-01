@@ -19,6 +19,8 @@ from aiogram.types import (
     WebAppInfo,
     InputMediaPhoto,
     FSInputFile,
+    BotCommand,
+    BotCommandScopeDefault,
 )
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
@@ -183,6 +185,11 @@ async def inject_handler(message: Message):
         await message.reply("❗ Please provide course notes after the topic line.")
         return
 
+    module_name = args[1]
+    if not notes_text.strip():
+        await message.reply("❗ Please provide course notes after the topic line.")
+        return
+
     try:
         material_id = await add_course_notes(module_name, topic.strip(), notes_text.strip(), message.from_user.id)
         await message.reply(
@@ -194,6 +201,39 @@ async def inject_handler(message: Message):
         )
     except ValueError as e:
         await message.reply(f"❌ {e}")
+
+
+async def schedule_handler(message: Message):
+    """Handle /schedule command — view the S5 GR02 timetable."""
+    from config import TIMETABLE
+    lines = ["📅 <b>S5 GR02 Weekly Timetable</b>\n────────────────────────"]
+    for day, entries in TIMETABLE.items():
+        lines.append(f"\n<b>{day}</b>")
+        if entries:
+            for entry in entries:
+                lines.append(f"  • {entry}")
+        else:
+            lines.append("  <i>No classes</i>")
+    text = "\n".join(lines)
+    await message.reply(text, parse_mode="HTML")
+
+
+async def deadlines_handler(message: Message):
+    """Handle /deadlines command — view upcoming deadlines."""
+    from config import DEADLINES
+    if not DEADLINES:
+        await message.reply("📭 No upcoming deadlines.", parse_mode="HTML")
+        return
+    lines = ["📋 <b>Upcoming Deadlines</b>\n────────────────────────"]
+    for d in DEADLINES:
+        lines.append(
+            f"\n📅 <b>{d['due_date']}</b>\n"
+            f"<b>{d['title']}</b>\n"
+            f"<i>{d['description']}</i>\n"
+            f"📖 Module: {d['module']}"
+        )
+    text = "\n".join(lines)
+    await message.reply(text, parse_mode="HTML")
 
 
 async def modules_handler(message: Message):
@@ -311,7 +351,9 @@ async def back_to_modules_callback(callback: CallbackQuery):
 DICT_API_URL = "https://api.dictionaryapi.dev/api/v2/entries/en/"
 
 async def define_handler(message: Message):
-    """Handle /define <word> — look up a word using the Free Dictionary API."""
+    """Handle /define <word> — look up a word using the Free Dictionary API.
+    Returns a premium HTML-formatted definition card.
+    """
     args = message.text.split(None, 1)
     if len(args) < 2 or not args[1].strip():
         await message.reply(
@@ -335,16 +377,19 @@ async def define_handler(message: Message):
                     )
                     return
                 if resp.status != 200:
+                    logger.warning("Dictionary API returned status %d for word '%s'", resp.status, word)
                     await message.reply(
-                        f"⚠️ Dictionary API returned status {resp.status}. Try again later.",
+                        f"⚠️ Dictionary API returned status {resp.status}.\n"
+                        "Try again later.",
                         parse_mode="HTML",
                     )
                     return
                 data = await resp.json()
     except Exception as e:
-        logger.warning("Dictionary API error for '%s': %s", word, e)
+        logger.error("Dictionary API error for '%s': %s", word, e, exc_info=True)
         await message.reply(
-            "❌ Sorry, I couldn't reach the dictionary service right now. Try again in a moment.",
+            "❌ Sorry, I couldn't reach the dictionary service right now.\n"
+            "Try again in a moment.",
             parse_mode="HTML",
         )
         return
@@ -357,14 +402,15 @@ async def define_handler(message: Message):
         return
 
     entry = data[0]
-    # Word + phonetic
-    phonetic = ""
-    phonetics = entry.get("phonetics", [])
-    if phonetics:
-        phonetic = phonetics[0].get("text", "")
     word_title = entry.get("word", word)
 
-    # Meanings → first part of speech + first definition + example
+    # Extract phonetic if available
+    phonetic = ""
+    phonetics = entry.get("phonetics", [])
+    if phonetics and isinstance(phonetics, list) and len(phonetics) > 0:
+        phonetic = phonetics[0].get("text", "")
+
+    # Extract first meaning's first definition + example
     meanings = entry.get("meanings", [])
     if not meanings:
         await message.reply(
@@ -386,18 +432,15 @@ async def define_handler(message: Message):
     definition = definitions[0].get("definition", "No definition available.")
     example = definitions[0].get("example", "")
 
+    # Build premium UI layout
     text = f"📖 <b>{word_title}</b>"
     if phonetic:
-        text += f" <i>{phonetic}</i>"
-    text += f"\n\n<b>Part of speech:</b> {part_of_speech}\n"
-    text += f"<b>Definition:</b> {definition}\n"
+        text += f"  <i>{phonetic}</i>"
+    text += f"\n────────────────────────\n"
+    text += f"🏷️ <b>{part_of_speech}</b>\n"
+    text += f"🔹 <b>Definition:</b> {definition}\n"
     if example:
-        text += f"\n<b>Example:</b> <i>{example}</i>\n"
-    text += f"\n🔍 Dictionary API"
-
-    if len(meanings) > 1:
-        extra_pos = ", ".join(m.get("partOfspeech", "") for m in meanings[1:])
-        text += f"\n<i>Also has meanings as: {extra_pos}</i>"
+        text += f"\n💬 <b>Example:</b> <i>\"{example}\"</i>\n"
 
     await message.reply(text, parse_mode="HTML")
 
@@ -481,6 +524,20 @@ async def main():
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
     dp = Dispatcher()
 
+    # Set bot command menu (autocomplete when typing /)
+    await bot.set_my_commands(
+        [
+            BotCommand(command="start", description="Open the main study hub menu"),
+            BotCommand(command="define", description="Look up a word (e.g. /define syntax)"),
+            BotCommand(command="schedule", description="View S5 GR02 timetable"),
+            BotCommand(command="deadlines", description="View upcoming dates"),
+            BotCommand(command="upload", description="(Admin) Upload study materials"),
+            BotCommand(command="broadcast", description="(Admin) Send announcement to group"),
+        ],
+        scope=BotCommandScopeDefault(),
+    )
+    logger.info("Bot commands registered for autocomplete menu")
+
     # Register routers
     dp.include_router(material_router)
     dp.include_router(quiz_router)
@@ -494,6 +551,8 @@ async def main():
     dp.message.register(inject_handler, Command("inject"))
     dp.message.register(webapp_handler, Command("webapp"))
     dp.message.register(define_handler, Command("define"))
+    dp.message.register(schedule_handler, Command("schedule"))
+    dp.message.register(deadlines_handler, Command("deadlines"))
 
     # Register callback query handlers for module inline buttons
     dp.callback_query.register(module_callback, lambda cb: cb.data and cb.data.startswith("module_"))
