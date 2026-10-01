@@ -18,6 +18,7 @@ from aiogram.types import (
     CallbackQuery,
     WebAppInfo,
     InputMediaPhoto,
+    InputFile,
 )
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
@@ -433,19 +434,31 @@ async def timetable_callback(callback: CallbackQuery):
     ])
 
     try:
-        with open(timetable_path, "rb") as photo:
-            await callback.message.edit_media(
-                media=InputMediaPhoto(media=photo),
-                caption="📅 <b>S5 GR02 Weekly Timetable</b>\n\n📍 FLSH Mohammedia",
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-    except Exception:
-        await callback.message.edit_text(
-            "📅 <b>S5 GR02 Weekly Timetable</b>\n\n(Image failed to load)",
+        input_file = InputFile(timetable_path)
+        await callback.message.edit_media(
+            media=InputMediaPhoto(media=input_file),
+            caption="📅 <b>S5 GR02 Weekly Timetable</b>\n\n📍 FLSH Mohammedia",
             reply_markup=keyboard,
             parse_mode="HTML",
         )
+    except Exception as e:
+        logger.warning("Timetable image edit failed: %s", e)
+        # Fallback: send the image as a new photo
+        try:
+            with open(timetable_path, "rb") as photo:
+                await callback.message.reply_photo(
+                    photo=photo,
+                    caption="📅 <b>S5 GR02 Weekly Timetable</b>\n\n📍 FLSH Mohammedia",
+                    reply_markup=keyboard,
+                    parse_mode="HTML",
+                )
+        except Exception as e2:
+            logger.error("Timetable image send also failed: %s", e2)
+            await callback.message.edit_text(
+                "📅 <b>S5 GR02 Weekly Timetable</b>\n\n(Image failed to load)",
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
     await callback.answer()
 
 
