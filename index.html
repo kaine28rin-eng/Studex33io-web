@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#030307" />
+  <meta name="theme-color" content="#000000" />
   <title>STUDYX — Academic Resource Vault</title>
 
   <!-- Fonts: Plus Jakarta Sans + JetBrains Mono -->
@@ -19,6 +19,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.10/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.10/ScrollTrigger.min.js"></script>
 
+  <!-- Tailwind Config -->
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -124,8 +125,7 @@
       background: radial-gradient(circle at 20% 50%, rgba(6, 182, 212, 0.08) 0%, transparent 50%),
                   radial-gradient(circle at 80% 30%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
                   radial-gradient(circle at 50% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
-      animation: var(--ease-emphasized);
-      animation-name: aurora-flow;
+      animation: aurora-flow;
       animation-duration: 20s;
       animation-iteration-count: infinite;
       filter: blur(2px);
@@ -370,7 +370,7 @@
       background: var(--color-text-dim);
     }
 
-    /* ===== Empty State — Glowing Wireframe ===== */
+    /* ===== Empty State ===== */
     .empty-state {
       text-align: center;
       padding: 56px 20px;
@@ -658,6 +658,32 @@
   </div>
 
   <script>
+    /* ===== State Management ===== */
+    const state = {
+      modules: [
+        { id: '19th-century-lit', name: '19th Century Literature', desc: '19th Century Russian & British Literature, prose narratives & critical texts', icon: 'book-open', materials: [] },
+        { id: 'cultural-studies', name: 'Cultural Studies', desc: 'Cultural theory, identity discourse, film and media studies', icon: 'film', materials: [] },
+        { id: 'applied-linguistics', name: 'Applied Linguistics', desc: 'Pedagogical terminology, second language acquisition & phonology', icon: 'languages', materials: [] },
+        { id: 'advanced-research', name: 'Advanced Research Techniques', desc: 'Academic methodologies, thesis structure, citations & data sampling', icon: 'microscope', materials: [] },
+        { id: 'general-linguistics', name: 'General Linguistics', desc: 'Syntax, semantics, morphology, phonetic structures & language systems', icon: 'binary', materials: [] }
+      ],
+      currentModuleId: null,
+      searchQuery: ''
+    };
+
+    /* ===== DOM Elements ===== */
+    const modulesContainer = document.getElementById('modulesContainer');
+    const mainView = document.getElementById('mainView');
+    const detailView = document.getElementById('detailView');
+    const backBtn = document.getElementById('backBtn');
+    const searchInput = document.getElementById('searchInput');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    const detailTitle = document.getElementById('detailTitle');
+    const detailSubtitle = document.getElementById('detailSubtitle');
+    const detailBadge = document.getElementById('detailBadge');
+    const detailIconWrapper = document.getElementById('detailIconWrapper');
+    const materialsList = document.getElementById('materialsList');
+
     /* ===== Detect GitHub Pages vs local ===== */
     const IS_GITHUB_PAGES = window.location.hostname.includes('github.io');
     const API_BASE = IS_GITHUB_PAGES ? '' : '/api';
@@ -671,8 +697,8 @@
       'Introduction to Research': 'atom',
       'Discourse Analysis': 'message-square',
       'French & Translation': 'translate',
-      'Advanced Research Techniques': 'target',
-      'General Linguistics': 'text-search'
+      'Advanced Research Techniques': 'microscope',
+      'General Linguistics': 'binary'
     };
 
     /* ===== Format File Size ===== */
@@ -717,7 +743,6 @@
         delay: 0.2
       });
 
-      // Animate skeleton fade out
       const skeleton = document.getElementById('skeletonGrid');
       if (skeleton) {
         gsap.to(skeleton, { opacity: 0, duration: 0.4, ease: 'power2.in' });
@@ -787,7 +812,6 @@
 
         lucide.createIcons();
 
-        // Wait for DOM paint, then run GSAP entrance + specular
         requestAnimationFrame(() => {
           animateEntrance();
           initSpecular();
@@ -810,7 +834,6 @@
       const view = document.getElementById('materialsView');
       const grid = document.getElementById('modulesGrid');
 
-      // Animate grid out
       gsap.to(grid, {
         opacity: 0,
         duration: 0.25,
@@ -934,7 +957,6 @@
         }
       });
 
-      // Re-init specular after cards reappear
       setTimeout(initSpecular, 350);
     }
 
@@ -962,7 +984,6 @@
       const materialsView = document.getElementById('materialsView');
       const searchResults = document.getElementById('searchResults');
 
-      // Hide grid and materials view, show search results
       gsap.to(grid, { opacity: 0, duration: 0.25, ease: 'power2.in' });
       materialsView.style.display = 'none';
       materialsView.classList.remove('active');
