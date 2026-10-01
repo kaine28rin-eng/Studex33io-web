@@ -17,7 +17,6 @@ from aiogram.types import (
     InlineKeyboardButton,
     CallbackQuery,
     WebAppInfo,
-    InputMediaPhoto,
     FSInputFile,
     BotCommand,
     BotCommandScopeDefault,
@@ -185,11 +184,6 @@ async def inject_handler(message: Message):
         await message.reply("❗ Please provide course notes after the topic line.")
         return
 
-    module_name = args[1]
-    if not notes_text.strip():
-        await message.reply("❗ Please provide course notes after the topic line.")
-        return
-
     try:
         material_id = await add_course_notes(module_name, topic.strip(), notes_text.strip(), message.from_user.id)
         await message.reply(
@@ -347,11 +341,147 @@ async def back_to_modules_callback(callback: CallbackQuery):
     await callback.answer()
 
 
-# Dictionary API base
+# Dictionary API base — dictionaryapi.dev is fronted by Cloudflare and may return 522;
+# we try it first, then fall back to Wiktionary if it times out or errors.
 DICT_API_URL = "https://api.dictionaryapi.dev/api/v2/entries/en/"
+WIKTIONARY_API_URL = "https://en.wiktionary.org/api/rest_v1/page/definition/"
+
+
+async def _lookup_word(word: str) -> dict | None:
+    """Try dictionaryapi.dev first, then Wiktionary as fallback.
+
+    Returns a normalised dict with keys: word, phonetic, meanings
+    (list of {partOfSpeech, definitions: [{definition, example}]}).
+    Returns None if all sources fail.
+    """
+    import re
+
+    ua_headers = {
+        "User-Agent": "STUDYX-Bot/1.0 (https://kaine28rin-eng.github.io/Studex33io-web/; mailto:studex@kaine28rin-eng.github.io)",
+    }
+
+    # --- Primary: dictionaryapi.dev ---
+    url = f"{DICT_API_URL}{word}"
+    try:
+        connector = aiohttp.TCPConnector(ssl=False, limit=10)
+        timeout = aiohttp.ClientTimeout(total=20)
+        async with aiohttp.ClientSession(
+            connector=connector, timeout=timeout, headers=ua_headers
+        ) as session:
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if data and isinstance(data, list):
+                        return _normalise_dictionaryapi(data)
+    except Exception as e:
+        logger.debug("dictionaryapi.dev failed for '%s': %s", word, e)
+
+    # --- Fallback: Wiktionary ---
+    url = f"{WIKTIONARY_API_URL}{word}"
+    try:
+        connector = aiohttp.TCPConnector(ssl=False, limit=10)
+        timeout = aiohttp.ClientTimeout(total=20)
+        async with aiohttp.ClientSession(
+            connector=connector, timeout=timeout, headers=ua_headers
+        ) as session:
+            async with session.get(url) as resp:
+                if resp.status == 404:
+                    return None  # genuinely not found
+                if resp.status != 200:
+                    logger.warning(
+                        "Wiktionary API returned status %d for word '%s'",
+                        resp.status,
+                        word,
+                    )
+                    return None
+                data = await resp.json()
+                if data and isinstance(data, dict):
+                    return _normalise_wiktionary(data, word)
+    except Exception as e:
+        logger.error(
+            "All dictionary sources failed for '%s': %s", word, e, exc_info=True
+        )
+
+    return None
+
+
+def _normalise_dictionaryapi(data: list) -> dict:
+    """Normalise the dictionaryapi.dev / Free Dictionary API response."""
+    entry = data[0]
+    word = entry.get("word", "")
+    phonetic = ""
+    phonetics = entry.get("phonetics", [])
+    if phonetics and isinstance(phonetics, list) and len(phonetics) > 0:
+        phonetic = phonetics[0].get("text", "")
+
+    meanings = []
+    for m in entry.get("meanings", []):
+        pos = m.get("partOfSpeech", "unknown")
+        defs = []
+        for d in m.get("definitions", []):
+            defs.append(
+                {
+                    "definition": d.get("definition", "No definition available."),
+                    "example": d.get("example", ""),
+                }
+            )
+        meanings.append({"partOfSpeech": pos, "definitions": defs})
+
+    return {
+        "word": word,
+        "phonetic": phonetic,
+        "meanings": meanings,
+    }
+
+
+def _normalise_wiktionary(data: dict, word: str) -> dict:
+    """Normalise the Wiktionary REST API response."""
+    import re
+
+    en_defs = data.get("en", [])
+    if not en_defs:
+        return {"word": word, "phonetic": "", "meanings": []}
+
+    meanings = []
+    for entry in en_defs:
+        pos = entry.get("partOfSpeech", "unknown")
+        defs = []
+        for d in entry.get("definitions", []):
+            raw = d.get("definition", "No definition available.")
+            # Strip HTML tags from Wiktionary's rich-text definitions
+            clean = re.sub(r"<[^>]+>", "", raw).strip()
+            # Extract first example if available
+            example = ""
+            examples = d.get("parsedExamples", d.get("examples", []))
+            if examples and isinstance(examples, list) and len(examples) > 0:
+                ex = examples[0]
+                if isinstance(ex, dict):
+                    example = re.sub(r"<[^>]+>", "", ex.get("text", "")).strip()
+                elif isinstance(ex, str):
+                    example = re.sub(r"<[^>]+>", "", ex).strip()
+            defs.append({"definition": clean, "example": example})
+        meanings.append({"partOfSpeech": pos, "definitions": defs})
+
+    # Extract pronunciation/phonetic from Wiktionary if available
+    phonetic = ""
+    pronunciation = data.get("pronunciation")
+    if pronunciation and isinstance(pronunciation, dict):
+        phonetic = pronunciation.get("text", "")
+        if not phonetic:
+            phonetic = str(list(pronunciation.values())[0])[:100]
+    elif pronunciation:
+        phonetic = str(pronunciation)[:100]
+
+    return {
+        "word": word,
+        "phonetic": phonetic,
+        "meanings": meanings,
+    }
+
 
 async def define_handler(message: Message):
-    """Handle /define <word> — look up a word using the Free Dictionary API.
+    """Handle /define <word> — look up a word using the Free Dictionary API,
+    with Wiktionary as a fallback when dictionaryapi.dev is unreachable.
     Returns a premium HTML-formatted definition card.
     """
     args = message.text.split(None, 1)
@@ -364,83 +494,54 @@ async def define_handler(message: Message):
         return
 
     word = args[1].strip().lower()
-    url = f"{DICT_API_URL}{word}"
+    await message.reply("🔍 Looking up <b>{}</b>...".format(word), parse_mode="HTML")
 
-    try:
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
-            async with session.get(url) as resp:
-                if resp.status == 404:
-                    await message.reply(
-                        f"❌ <b>No results</b> for &lt;{word}&gt;.\n"
-                        "Please check your spelling and try again.",
-                        parse_mode="HTML",
-                    )
-                    return
-                if resp.status != 200:
-                    logger.warning("Dictionary API returned status %d for word '%s'", resp.status, word)
-                    await message.reply(
-                        f"⚠️ Dictionary API returned status {resp.status}.\n"
-                        "Try again later.",
-                        parse_mode="HTML",
-                    )
-                    return
-                data = await resp.json()
-    except Exception as e:
-        logger.error("Dictionary API error for '%s': %s", word, e, exc_info=True)
+    result = await _lookup_word(word)
+    if result is None:
         await message.reply(
-            "❌ Sorry, I couldn't reach the dictionary service right now.\n"
-            "Try again in a moment.",
+            "❌ <b>No results</b> for &lt;{}&gt;.\n"
+            "The word was not found in any dictionary. "
+            "Please check your spelling and try again.".format(word),
             parse_mode="HTML",
         )
         return
 
-    if not data or not isinstance(data, list):
-        await message.reply(
-            f"❌ No definition found for &lt;{word}&gt;. Try another word.",
-            parse_mode="HTML",
-        )
-        return
+    word_title = result.get("word", word)
+    phonetic = result.get("phonetic", "")
+    meanings = result.get("meanings", [])
 
-    entry = data[0]
-    word_title = entry.get("word", word)
-
-    # Extract phonetic if available
-    phonetic = ""
-    phonetics = entry.get("phonetics", [])
-    if phonetics and isinstance(phonetics, list) and len(phonetics) > 0:
-        phonetic = phonetics[0].get("text", "")
-
-    # Extract first meaning's first definition + example
-    meanings = entry.get("meanings", [])
     if not meanings:
         await message.reply(
-            f"❌ No definitions found for &lt;{word}&gt;.",
+            "❌ No definitions found for &lt;{}&gt;.".format(word_title),
             parse_mode="HTML",
         )
         return
 
-    meaning = meanings[0]
-    part_of_speech = meaning.get("partOfSpeech", "unknown")
-    definitions = meaning.get("definitions", [])
-    if not definitions:
-        await message.reply(
-            f"❌ No definitions found for &lt;{word}&gt;.",
-            parse_mode="HTML",
-        )
-        return
-
-    definition = definitions[0].get("definition", "No definition available.")
-    example = definitions[0].get("example", "")
-
-    # Build premium UI layout
-    text = f"📖 <b>{word_title}</b>"
+    # Build premium UI layout — show all parts of speech with their definitions
+    text = "📖 <b>{}</b>".format(word_title)
     if phonetic:
-        text += f"  <i>{phonetic}</i>"
-    text += f"\n────────────────────────\n"
-    text += f"🏷️ <b>{part_of_speech}</b>\n"
-    text += f"🔹 <b>Definition:</b> {definition}\n"
-    if example:
-        text += f"\n💬 <b>Example:</b> <i>\"{example}\"</i>\n"
+        text += "  <i>{}</i>".format(phonetic)
+    text += "\n────────────────────────\n"
+
+    shown = 0
+    for meaning in meanings:
+        if shown >= 3:
+            break
+        pos = meaning.get("partOfSpeech", "unknown")
+        definitions = meaning.get("definitions", [])
+        if not definitions:
+            continue
+        text += "\n🏷️ <b>{}</b>\n".format(pos)
+        for d in definitions[:2]:
+            definition = d.get("definition", "No definition available.")
+            example = d.get("example", "")
+            text += "🔹 {}".format(definition)
+            if example:
+                text += '\n💬 <i>"{}"</i>'.format(example)
+            text += "\n"
+        shown += 1
+
+    text += "\n💡 Tip: Copy the word and paste it into your notes for spaced repetition review."
 
     await message.reply(text, parse_mode="HTML")
 
