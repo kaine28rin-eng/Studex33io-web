@@ -76,6 +76,10 @@ def build_start_keyboard():
     buttons.append([
         InlineKeyboardButton(text="🏛️ Google Classroom Codes", callback_data="classroom_codes"),
     ])
+    # Timetable row
+    buttons.append([
+        InlineKeyboardButton(text="📅 Timetable", callback_data="view_timetable"),
+    ])
 
     # Bottom row: Upload / Contribute
     buttons.append([
@@ -399,11 +403,10 @@ async def define_handler(message: Message):
 
 async def classroom_codes_callback(callback: CallbackQuery):
     """Handle the 'Google Classroom Codes' inline button callback.
-    Shows the latest schedule image alongside the classroom codes.
+    Shows classroom codes as text with a Back button.
     """
     from config import MODULES
 
-    # Build classroom codes text from MODULES config
     lines = ["🏛️ FLSHM S5 Google Classroom Codes:\n"]
     for module_name, info in MODULES.items():
         code = info.get("classroom_code")
@@ -412,25 +415,37 @@ async def classroom_codes_callback(callback: CallbackQuery):
     lines.append("\n(Tap a code to copy it. More modules will be added soon.)")
     text = "\n".join(lines)
 
-    # Schedule image
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Back to Main Menu", callback_data="back_to_modules")],
+    ])
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await callback.answer()
+
+
+async def timetable_callback(callback: CallbackQuery):
+    """Handle the 'Timetable' inline button callback.
+    Shows the timetable image with a Back button.
+    """
     timetable_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "timetable_s5gr02.jpg")
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 Back to Main Menu", callback_data="back_to_modules")],
     ])
 
-    # Send the timetable photo, then the codes as caption/text
     try:
         with open(timetable_path, "rb") as photo:
             await callback.message.edit_media(
                 media=InputMediaPhoto(media=photo),
-                caption=text,
+                caption="📅 <b>S5 GR02 Weekly Timetable</b>\n\n📍 FLSH Mohammedia",
                 reply_markup=keyboard,
                 parse_mode="HTML",
             )
     except Exception:
-        # Fallback: just edit text if image fails
-        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+        await callback.message.edit_text(
+            "📅 <b>S5 GR02 Weekly Timetable</b>\n\n(Image failed to load)",
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
     await callback.answer()
 
 
@@ -479,6 +494,7 @@ async def main():
     dp.callback_query.register(module_callback, lambda cb: cb.data and cb.data.startswith("module_"))
     dp.callback_query.register(back_to_modules_callback, lambda cb: cb.data == "back_to_modules")
     dp.callback_query.register(classroom_codes_callback, lambda cb: cb.data == "classroom_codes")
+    dp.callback_query.register(timetable_callback, lambda cb: cb.data == "view_timetable")
 
     # Periodic timetable check (background task)
     async def periodic_timetable_check():
