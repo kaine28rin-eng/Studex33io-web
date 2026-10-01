@@ -16,8 +16,8 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <!-- GSAP -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.10/gsap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.10/ScrollTrigger.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
   <!-- Tailwind Config -->
   <script>
@@ -690,20 +690,30 @@
       const cards = document.querySelectorAll('.module-card');
       if (!cards.length) return;
 
-      gsap.set(cards, { opacity: 0, y: 30, scale: 0.96 });
-      gsap.to(cards, {
-        opacity: 1,
-        y: 0,
-        scale: 1,
-        duration: 0.7,
-        stagger: { amount: 0.6, ease: 'power3.out' },
-        ease: 'elastic.out(1, 0.5)',
-        delay: 0.2
-      });
+      // Ensure cards are visible via CSS (in case GSAP fails to load)
+      cards.forEach(c => { c.style.opacity = '1'; c.style.transform = 'translateY(0) scale(1)'; });
 
-      const skeleton = document.getElementById('skeletonGrid');
-      if (skeleton) {
-        gsap.to(skeleton, { opacity: 0, duration: 0.4, ease: 'power2.in' });
+      // Smooth animation if GSAP is available
+      if (typeof gsap !== 'undefined') {
+        gsap.set(cards, { opacity: 0, y: 30, scale: 0.96 });
+        gsap.to(cards, {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          duration: 0.7,
+          stagger: { amount: 0.6, ease: 'power3.out' },
+          ease: 'elastic.out(1, 0.5)',
+          delay: 0.2
+        });
+
+        const skeleton = document.getElementById('skeletonGrid');
+        if (skeleton) {
+          gsap.to(skeleton, { opacity: 0, duration: 0.4, ease: 'power2.in' });
+        }
+      } else {
+        // Fallback: hide skeleton if GSAP isn't available
+        const skeleton = document.getElementById('skeletonGrid');
+        if (skeleton) skeleton.style.display = 'none';
       }
     }
 
@@ -841,14 +851,18 @@
       const view = document.getElementById('materialsView');
       const grid = document.getElementById('modulesGrid');
 
-      gsap.to(grid, {
-        opacity: 0,
-        duration: 0.25,
-        ease: 'power2.in',
-        onComplete: () => {
-          grid.style.display = 'none';
-        }
-      });
+      if (typeof gsap !== 'undefined') {
+        gsap.to(grid, {
+          opacity: 0,
+          duration: 0.25,
+          ease: 'power2.in',
+          onComplete: () => {
+            grid.style.display = 'none';
+          }
+        });
+      } else {
+        grid.style.display = 'none';
+      }
 
       setTimeout(async () => {
         view.innerHTML = `
@@ -927,11 +941,17 @@
 
           lucide.createIcons();
 
-          gsap.to('.material-item', {
-            opacity: 1, y: 0, scale: 1,
-            duration: 0.5, stagger: 0.08,
-            ease: 'power2.out'
-          });
+          if (typeof gsap !== 'undefined') {
+            gsap.to('.material-item', {
+              opacity: 1, y: 0, scale: 1,
+              duration: 0.5, stagger: 0.08,
+              ease: 'power2.out'
+            });
+          } else {
+            document.querySelectorAll('.material-item').forEach(el => {
+              el.style.opacity = '1'; el.style.transform = 'translateY(0) scale(1)';
+            });
+          }
 
         } catch (e) {
           document.getElementById('materialsList').innerHTML =
@@ -951,18 +971,26 @@
       searchResults.style.display = 'none';
       searchResults.classList.remove('active');
 
-      gsap.to(view, {
-        opacity: 0,
-        duration: 0.25,
-        ease: 'power2.in',
-        onComplete: () => {
-          view.classList.remove('active');
-          view.style.display = 'none';
-          view.innerHTML = '';
-          grid.style.display = 'grid';
-          gsap.to(grid, { opacity: 1, duration: 0.3, ease: 'power2.out' });
-        }
-      });
+      if (typeof gsap !== 'undefined') {
+        gsap.to(view, {
+          opacity: 0,
+          duration: 0.25,
+          ease: 'power2.in',
+          onComplete: () => {
+            view.classList.remove('active');
+            view.style.display = 'none';
+            view.innerHTML = '';
+            grid.style.display = 'grid';
+            gsap.to(grid, { opacity: 1, duration: 0.3, ease: 'power2.out' });
+          }
+        });
+      } else {
+        view.classList.remove('active');
+        view.style.display = 'none';
+        view.innerHTML = '';
+        grid.style.display = 'grid';
+        grid.style.opacity = '1';
+      }
 
       setTimeout(initSpecular, 350);
     }
@@ -991,7 +1019,8 @@
       const materialsView = document.getElementById('materialsView');
       const searchResults = document.getElementById('searchResults');
 
-      gsap.to(grid, { opacity: 0, duration: 0.25, ease: 'power2.in' });
+      if (typeof gsap !== 'undefined') gsap.to(grid, { opacity: 0, duration: 0.25, ease: 'power2.in' });
+      else grid.style.opacity = '0';
       materialsView.style.display = 'none';
       materialsView.classList.remove('active');
 
@@ -1050,11 +1079,17 @@
           }
 
           lucide.createIcons();
-          gsap.to('.material-item', {
-            opacity: 1, y: 0, scale: 1,
-            duration: 0.5, stagger: 0.08,
-            ease: 'power2.out'
-          });
+          if (typeof gsap !== 'undefined') {
+            gsap.to('.material-item', {
+              opacity: 1, y: 0, scale: 1,
+              duration: 0.5, stagger: 0.08,
+              ease: 'power2.out'
+            });
+          } else {
+            document.querySelectorAll('.material-item').forEach(el => {
+              el.style.opacity = '1'; el.style.transform = 'translateY(0) scale(1)';
+            });
+          }
 
           searchResults.style.display = 'block';
           searchResults.classList.add('active');
