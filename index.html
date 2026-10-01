@@ -551,17 +551,6 @@
       transform: scale(0.94);
     }
 
-    .footer {
-      text-align: center;
-      color: var(--color-text-dim);
-      font-size: 12px;
-      font-family: 'JetBrains Mono', monospace;
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid var(--color-border);
-      letter-spacing: 0.5px;
-    }
-
     /* ===== Loading Skeleton ===== */
     .skeleton {
       display: grid;
@@ -650,40 +639,9 @@
 
     <!-- Materials View -->
     <div id="materialsView" class="materials-view"></div>
-
-    <!-- Footer -->
-    <div class="footer">
-      STUDYX Bot • kaine28rin-eng/Studex33io-web
-    </div>
   </div>
 
   <script>
-    /* ===== State Management ===== */
-    const state = {
-      modules: [
-        { id: '19th-century-lit', name: '19th Century Literature', desc: '19th Century Russian & British Literature, prose narratives & critical texts', icon: 'book-open', materials: [] },
-        { id: 'cultural-studies', name: 'Cultural Studies', desc: 'Cultural theory, identity discourse, film and media studies', icon: 'film', materials: [] },
-        { id: 'applied-linguistics', name: 'Applied Linguistics', desc: 'Pedagogical terminology, second language acquisition & phonology', icon: 'languages', materials: [] },
-        { id: 'advanced-research', name: 'Advanced Research Techniques', desc: 'Academic methodologies, thesis structure, citations & data sampling', icon: 'microscope', materials: [] },
-        { id: 'general-linguistics', name: 'General Linguistics', desc: 'Syntax, semantics, morphology, phonetic structures & language systems', icon: 'binary', materials: [] }
-      ],
-      currentModuleId: null,
-      searchQuery: ''
-    };
-
-    /* ===== DOM Elements ===== */
-    const modulesContainer = document.getElementById('modulesContainer');
-    const mainView = document.getElementById('mainView');
-    const detailView = document.getElementById('detailView');
-    const backBtn = document.getElementById('backBtn');
-    const searchInput = document.getElementById('searchInput');
-    const clearSearchBtn = document.getElementById('clearSearchBtn');
-    const detailTitle = document.getElementById('detailTitle');
-    const detailSubtitle = document.getElementById('detailSubtitle');
-    const detailBadge = document.getElementById('detailBadge');
-    const detailIconWrapper = document.getElementById('detailIconWrapper');
-    const materialsList = document.getElementById('materialsList');
-
     /* ===== Detect GitHub Pages vs local ===== */
     const IS_GITHUB_PAGES = window.location.hostname.includes('github.io');
     const API_BASE = IS_GITHUB_PAGES ? '' : '/api';
@@ -766,13 +724,16 @@
     }
 
     /* ===== Load Modules ===== */
+    let lastModulesHash = '';
     async function loadModules() {
       const grid = document.getElementById('modulesGrid');
+      const skeleton = document.getElementById('skeletonGrid');
 
       try {
         let modules;
         if (IS_GITHUB_PAGES) {
-          const resp = await fetch('api/materials.json');
+          // Cache-bust so GitHub Pages edge doesn't serve stale JSON
+          const resp = await fetch('api/materials.json?ts=' + Date.now());
           const data = await resp.json();
           modules = data.modules || [];
         } else {
@@ -780,6 +741,20 @@
           const data = await resp.json();
           modules = data.modules || [];
         }
+
+        // Check if cards already exist (for live updates without animation reset)
+        const existingCards = grid.querySelectorAll('.module-card');
+        const isInitialRender = existingCards.length === 0;
+
+        // Skip re-render if data hasn't changed (avoids animation reset on poll)
+        const currentHash = JSON.stringify(modules.map(m => ({ name: m.name, count: m.material_count })));
+        if (currentHash === lastModulesHash && !isInitialRender) {
+          return;
+        }
+        if (skeleton) {
+          skeleton.style.display = 'none';
+        }
+        lastModulesHash = currentHash;
 
         if (modules.length === 0) {
           grid.innerHTML = `
@@ -792,39 +767,71 @@
           return;
         }
 
-        // Asymmetric Bento: items at index 1 and 3 span full width
-        grid.innerHTML = modules.map((m, i) => {
-          const bentoClass = (i === 1 || i === 3) ? 'bento-span-2' : 'bento-span-1';
-          const iconName = moduleIcons[m.name] || 'folder';
-          const count = m.material_count || 0;
-          return `
-            <div class="module-card ${bentoClass}" onclick="showModule('${m.name}')">
-              <div class="module-icon">${iconHTML(iconName)}</div>
-              <h3 class="module-name">${m.name}</h3>
-              <p class="module-desc">${m.description || 'No description available.'}</p>
-              <div class="module-stats">
-                <span class="stat-dot"></span>
-                <span>${count} material${count !== 1 ? 's' : ''}</span>
+        if (isInitialRender) {
+          grid.innerHTML = modules.map((m, i) => {
+            const bentoClass = (i === 1 || i === 3) ? 'bento-span-2' : 'bento-span-1';
+            const iconName = moduleIcons[m.name] || 'folder';
+            const count = m.material_count || 0;
+            return `
+              <div class="module-card ${bentoClass}" data-module="${m.name}" onclick="showModule('${m.name}')">
+                <div class="module-icon">${iconHTML(iconName)}</div>
+                <h3 class="module-name">${m.name}</h3>
+                <p class="module-desc">${m.description || 'No description available.'}</p>
+                <div class="module-stats">
+                  <span class="stat-dot"></span>
+                  <span class="material-count">${count} material${count !== 1 ? 's' : ''}</span>
+                </div>
               </div>
-            </div>
-          `;
-        }).join('');
+            `;
+          }).join('');
 
-        lucide.createIcons();
-
-        requestAnimationFrame(() => {
-          animateEntrance();
-          initSpecular();
-        });
+          lucide.createIcons();
+          requestAnimationFrame(() => {
+            animateEntrance();
+            initSpecular();
+          });
+        } else {
+          // Live update: just refresh material counts on existing cards
+          modules.forEach(m => {
+            const card = grid.querySelector(`.module-card[data-module="${m.name}"]`);
+            if (card) {
+              const countEl = card.querySelector('.material-count');
+              const count = m.material_count || 0;
+              if (countEl) {
+                countEl.textContent = `${count} material${count !== 1 ? 's' : ''}`;
+              }
+            }
+          });
+          // Also update materials view if open
+          const materialsView = document.getElementById('materialsView');
+          if (materialsView && materialsView.classList.contains('active')) {
+            // Re-fetch materials for the currently-viewed module
+            const headerText = materialsView.querySelector('.module-header h2');
+            if (headerText) {
+              const currentModuleName = headerText.textContent;
+              const resp = await fetch('api/materials.json?ts=' + Date.now());
+              const data = await resp.json();
+              const moduleInfo = (data.modules || []).find(mod => mod.name === currentModuleName);
+              if (moduleInfo) {
+                const badge = materialsView.querySelector('#materialCount');
+                if (badge) {
+                  badge.textContent = `${moduleInfo.material_count || 0} material${moduleInfo.material_count !== 1 ? 's' : ''}`;
+                }
+              }
+            }
+          }
+        }
 
       } catch (e) {
-        grid.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-icon">${iconHTML('alert-circle')}</div>
-            <p>Error loading modules. Make sure api/materials.json is accessible.</p>
-          </div>
-        `;
-        lucide.createIcons();
+        if (!grid.querySelector('.empty-state')) {
+          grid.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon">${iconHTML('alert-circle')}</div>
+              <p>Error loading modules. Make sure api/materials.json is accessible.</p>
+            </div>
+          `;
+          lucide.createIcons();
+        }
         console.error(e);
       }
     }
@@ -870,7 +877,7 @@
           let materials, moduleInfo;
 
           if (IS_GITHUB_PAGES) {
-            const resp = await fetch('api/materials.json');
+            const resp = await fetch('api/materials.json?ts=' + Date.now());
             const data = await resp.json();
             materials = (data.materials || []).filter(m => m.module === moduleName);
             moduleInfo = (data.modules || []).find(m => m.name === moduleName) ||
@@ -994,7 +1001,7 @@
         try {
           let results;
           if (IS_GITHUB_PAGES) {
-            const resp = await fetch('api/materials.json');
+            const resp = await fetch('api/materials.json?ts=' + Date.now());
             const data = await resp.json();
             const q = query.toLowerCase();
             results = (data.materials || []).filter(m =>
@@ -1061,6 +1068,19 @@
     /* ===== Initialize ===== */
     lucide.createIcons();
     loadModules();
+
+    /* ===== Auto-Refresh: poll for new modules every 30s ===== */
+    let autoRefreshInterval = setInterval(loadModules, 30000);
+
+    /* ===== Hot Reload via BroadcastChannel (same-tab cross-tab sync) ===== */
+    if ('BroadcastChannel' in window) {
+      const bc = new BroadcastChannel('studyx-refresh');
+      bc.addEventListener('message', (e) => {
+        if (e.data === 'refresh' || e.data === 'materials-updated') {
+          loadModules();
+        }
+      });
+    }
   </script>
 </body>
 </html>
