@@ -195,6 +195,14 @@ def api_search():
         conn.close()
 
 
+@app.route('/apks/<path:filename>')
+def download_apk(filename):
+    """Serve APK files from the public/apks directory."""
+    apk_dir = os.path.join(app.static_folder, '..', 'public', 'apks')
+    apk_dir = os.path.realpath(apk_dir)
+    return send_from_directory(apk_dir, filename, as_attachment=True)
+
+
 @app.route('/api/health')
 def health():
     return jsonify({"status": "ok", "db_path": DB_PATH})
